@@ -1,6 +1,7 @@
 import numpy as np
 from utils import *
 import torch
+import random
 
 # synthetic
 def dataSplit(train_data, test_data, client_split = ((.5, .2), (.3, .4), (.2, .4)), Z = 2):
@@ -226,6 +227,7 @@ for c in range(NUM_CLIENTS):
 
 # 5) DataLoader 所需对象
 compas_num_features = len(compas.columns) - 1
+compas_z = len(set(compas.z))
 compas_train        = LoadData(train, label_name, 'z')
 compas_test         = LoadData(test,  label_name, 'z')
 compas_info         = [compas_train, compas_test, compas_clients_idx]

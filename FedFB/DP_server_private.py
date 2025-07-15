@@ -236,7 +236,7 @@ class Server(object):
                     tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -246,6 +246,7 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
@@ -369,7 +370,7 @@ class Server(object):
 
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -379,6 +380,7 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
