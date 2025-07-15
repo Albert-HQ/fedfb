@@ -36,14 +36,15 @@ def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False
 
     # execute
     if method == 'fedfb':
-        acc, dpdisp, classifier = server.FedFB(**kwargs)
+        acc, dpdisp, eod, classifier = server.FedFB(**kwargs)
     elif method == 'fflfb':
-        acc, dpdisp, classifier = server.FFLFB(**kwargs)
+        acc, dpdisp, eod, classifier = server.FFLFB(**kwargs)
     else:
         Warning('Does not support this method!')
         exit(1)
 
-    if not trial: return {'accuracy': acc, 'DP Disp': dpdisp}
+    if not trial:
+        return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
 
 def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
     # choose the model
@@ -104,8 +105,8 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -159,8 +160,8 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -181,13 +182,26 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         exit(1)
 
 def sim_dp_man(method, model, dataset, ε = 1, num_sim = 5, seed = 0, **kwargs):
+    """Run multiple simulations with differential privacy and report statistics."""
     results = []
     for seed in range(num_sim):
-        results.append(run_dp(method, model, dataset, prn = True, ε = ε, seed = seed, trial = False, **kwargs))
+        results.append(
+            run_dp(method, model, dataset, prn=True, ε=ε, seed=seed, trial=False, **kwargs)
+        )
+
     df = pd.DataFrame(results)
-    acc_mean, rp_mean = df.mean()
-    acc_mean, dp_mean = df.mean()
-    acc_std, dp_std = df.std()
+
+    acc_mean = df['accuracy'].mean()
+    acc_std = df['accuracy'].std()
+    dp_mean = df['DP Disp'].mean()
+    dp_std = df['DP Disp'].std()
+    eod_mean = df['EOD'].mean()
+    eod_std = df['EOD'].std()
+
     print("Result across %d simulations: " % num_sim)
-    print("| Accuracy: %.4f(%.4f) | DP Disp: %.4f(%.4f)" % (acc_mean, acc_std, dp_mean, dp_std))
-    return acc_mean, acc_std, dp_mean, dp_std
+    print(
+        "| Accuracy: %.4f(%.4f) | DP Disp: %.4f(%.4f) | EOD: %.4f(%.4f)"
+        % (acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std)
+    )
+
+    return acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std
