@@ -36,14 +36,15 @@ def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False
 
     # execute
     if method == 'fedfb':
-        acc, dpdisp, classifier = server.FedFB(**kwargs)
+        acc, dpdisp, eod, classifier = server.FedFB(**kwargs)
     elif method == 'fflfb':
-        acc, dpdisp, classifier = server.FFLFB(**kwargs)
+        acc, dpdisp, eod, classifier = server.FFLFB(**kwargs)
     else:
         Warning('Does not support this method!')
         exit(1)
 
-    if not trial: return {'accuracy': acc, 'DP Disp': dpdisp}
+    if not trial:
+        return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
 
 def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
     # choose the model
@@ -104,8 +105,8 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -159,8 +160,8 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):

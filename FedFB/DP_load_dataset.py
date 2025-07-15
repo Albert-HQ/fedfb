@@ -187,7 +187,7 @@ train = compas.iloc[: int(len(compas) * .7)]
 test  = compas.iloc[int(len(compas) * .7):]
 
 # 1) Dirichlet‑α 参数（可与 Adult 区域保持一致）
-NUM_CLIENTS            = 5    # 客户端数
+NUM_CLIENTS            = 3    # 客户端数
 ALPHA                  = 0.1  # Dirichlet α（越小→分布越不均匀）
 MIN_SAMPLES            = 100  # 每客户端最少样本
 MIN_SAMPLES_PER_GROUP  = 20   # 每客户端每个敏感组最少样本
