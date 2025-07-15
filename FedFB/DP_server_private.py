@@ -157,6 +157,15 @@ class Server(object):
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.ε:
+                    num_params = len(weights)
+                    each_ε = self.ε / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -240,7 +249,7 @@ class Server(object):
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
         # support more than 2 groups
         else:
@@ -287,6 +296,15 @@ class Server(object):
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.ε:
+                    num_params = len(weights)
+                    each_ε = self.ε / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -364,7 +382,7 @@ class Server(object):
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
     def FFLFB(self, num_rounds = 10, local_epochs = 30, learning_rate = 0.005, optimizer = 'adam', alpha = (0.3,0.3,0.3)):
         # new algorithm for demographic parity, add weights directly, signed gradient-based algorithm
@@ -403,6 +421,15 @@ class Server(object):
 
             # update global weights
             weights = weighted_average_weights(local_weights, nc, sum(nc))
+            # add client-level DP noise after aggregation
+            if self.ε:
+                num_params = len(weights)
+                each_ε = self.ε / num_params
+                for key in weights:
+                    noise = torch.from_numpy(
+                        np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
+                    ).type(weights[key].dtype)
+                    weights[key] += noise
             self.model.load_state_dict(weights)
 
             loss_avg = sum(local_losses) / len(local_losses)
@@ -451,7 +478,7 @@ class Server(object):
                 tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)  
 
         # Test inference after completion of training
-        test_acc, n_yz= self.test_inference()
+        test_acc, n_yz, test_eod = self.test_inference()
         rd = self.disparity(n_yz)
 
         if self.prn:
@@ -461,15 +488,16 @@ class Server(object):
 
             # Compute fairness metric
             print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+            print("|---- Test EOD     : {:.4f}".format(test_eod))
 
             print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-        if self.ret: return test_acc, rd, self.model
+        if self.ret: return test_acc, rd, test_eod, self.model
 
     def test_inference(self, model = None, test_dataset = None):
 
-        """ 
-        Returns the test accuracy and fairness level.
+        """
+        Returns the test accuracy, DP counts and EOD value.
         """
         # set seed
         np.random.seed(self.seed)
@@ -485,7 +513,9 @@ class Server(object):
         for y in [0,1]:
             for z in range(self.Z):
                 n_yz[(y,z)] = 0
-        
+
+        y_true_all, y_pred_all, z_all = [], [], []
+
         testloader = DataLoader(test_dataset, batch_size=self.batch_size,
                                 shuffle=False)
 
@@ -501,13 +531,29 @@ class Server(object):
             bool_correct = torch.eq(pred_labels, labels)
             correct += torch.sum(bool_correct).item()
             total += len(labels)
-            
+
             for y,z in n_yz:
-                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()  
+                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()
+
+            y_true_all.append(labels.cpu())
+            y_pred_all.append(pred_labels.cpu())
+            z_all.append(sensitive.cpu())
 
         accuracy = correct/total
 
-        return accuracy, n_yz
+        y_true_all = torch.cat(y_true_all)
+        y_pred_all = torch.cat(y_pred_all)
+        z_all = torch.cat(z_all)
+        eod_value = compute_eod(y_true_all, y_pred_all, z_all)
+
+        # ensure ε-differential privacy when reporting counts
+        if self.ε:
+            num_params = len(self.model.state_dict())
+            each_ε = self.ε / (num_params + self.Z * 2)
+            for yz in n_yz:
+                n_yz[yz] += np.random.laplace(loc=0.0, scale=1/each_ε)
+
+        return accuracy, n_yz, eod_value
 
 class Client(object):
     def __init__(self, dataset, idxs, batch_size, option, seed = 0, prn = True, penalty = 500, Z = 2):
