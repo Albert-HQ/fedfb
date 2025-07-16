@@ -504,32 +504,39 @@ import numpy as np
 import torch
 
 def compute_eod(y_true, y_pred, sensitive):
-    """
-    Equal Opportunity Difference (Hardt 2016)：
-        EOD = |TPR_z=1 - TPR_z=0|
-    其中 TPR =  P(ŷ=1 | y=1, z)
+    """Compute Equal Opportunity Difference for any number of groups.
 
-    参数
-    ----
-    y_true    : Tensor/ndarray, 真实标签 (0/1)
-    y_pred    : Tensor/ndarray, 预测标签 (0/1 或概率>0.5)
-    sensitive : Tensor/ndarray, 敏感属性 z (0/1)
+    Parameters
+    ----------
+    y_true : Tensor or ndarray
+        Ground truth labels (0/1).
+    y_pred : Tensor or ndarray
+        Predicted labels (0/1 or probabilities > 0.5).
+    sensitive : Tensor or ndarray
+        Sensitive attribute ``z``. Can contain more than two groups.
 
-    返回
-    ----
-    float, eod 值
+    Returns
+    -------
+    float
+        The maximum absolute difference between each group's TPR and the
+        overall TPR.
     """
-    # → 全转成 numpy，方便广播运算
+
+    # Convert to numpy for easy vectorised operations
     y_true = y_true.detach().cpu().numpy() if torch.is_tensor(y_true) else np.asarray(y_true)
     y_pred = y_pred.detach().cpu().numpy() if torch.is_tensor(y_pred) else np.asarray(y_pred)
     sensitive = sensitive.detach().cpu().numpy() if torch.is_tensor(sensitive) else np.asarray(sensitive)
 
-    # 只取正例 (y=1) 再分组
+    # Mask for positive examples
     pos_mask = (y_true == 1)
-    grp0 = (pos_mask) & (sensitive == 0)
-    grp1 = (pos_mask) & (sensitive == 1)
+    if not np.any(pos_mask):
+        return 0.0
 
-    # 避免除 0，用 1e‑9 平滑
-    tpr0 = (y_pred[grp0] == 1).mean() if grp0.any() else 0.0
-    tpr1 = (y_pred[grp1] == 1).mean() if grp1.any() else 0.0
-    return abs(tpr1 - tpr0)
+    overall_tpr = (y_pred[pos_mask] == 1).mean()
+    eod = 0.0
+    for g in np.unique(sensitive):
+        grp_mask = pos_mask & (sensitive == g)
+        if np.any(grp_mask):
+            tpr_g = (y_pred[grp_mask] == 1).mean()
+            eod = max(eod, abs(tpr_g - overall_tpr))
+    return eod

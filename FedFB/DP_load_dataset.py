@@ -1,6 +1,7 @@
 import numpy as np
 from utils import *
 import torch
+import random
 
 # synthetic
 def dataSplit(train_data, test_data, client_split = ((.5, .2), (.3, .4), (.2, .4)), Z = 2):
@@ -187,7 +188,7 @@ train = compas.iloc[: int(len(compas) * .7)]
 test  = compas.iloc[int(len(compas) * .7):]
 
 # 1) Dirichlet‑α 参数（可与 Adult 区域保持一致）
-NUM_CLIENTS            = 5    # 客户端数
+NUM_CLIENTS            = 3    # 客户端数
 ALPHA                  = 0.1  # Dirichlet α（越小→分布越不均匀）
 MIN_SAMPLES            = 100  # 每客户端最少样本
 MIN_SAMPLES_PER_GROUP  = 20   # 每客户端每个敏感组最少样本
@@ -226,6 +227,7 @@ for c in range(NUM_CLIENTS):
 
 # 5) DataLoader 所需对象
 compas_num_features = len(compas.columns) - 1
+compas_z = len(set(compas.z))
 compas_train        = LoadData(train, label_name, 'z')
 compas_test         = LoadData(test,  label_name, 'z')
 compas_info         = [compas_train, compas_test, compas_clients_idx]

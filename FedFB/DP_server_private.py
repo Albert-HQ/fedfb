@@ -12,13 +12,10 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 #########################################################
 
-def laplace(x, μ, b):
-    return 1 / (2 * b) * np.exp(-np.abs(x - μ) / b)
-
 class Server(object):
     def __init__(self, model, dataset_info, seed = 123, num_workers = 4, ret = False, 
                 train_prn = False, metric = "Demographic disparity", 
-                batch_size = 128, print_every = 1, fraction_clients = 1, Z = 2, prn = True, trial = False, ε = 1):
+                batch_size = 128, print_every = 1, fraction_clients = 1, Z = 2, prn = True, trial = False, epsilon = 1):
         """
         Server execution.
 
@@ -82,7 +79,7 @@ class Server(object):
         self.Z = Z
 
         self.trial = trial
-        self.ε = ε
+        self.epsilon = epsilon
         self.trainloader, self.validloader = self.train_val(self.train_dataset, batch_size)
     
     def train_val(self, dataset, batch_size, idxs_train_full = None, split = False):
@@ -125,6 +122,11 @@ class Server(object):
             start_time = time.time()
             weights = self.model.state_dict()
 
+            if self.prn and self.epsilon:
+                num_params = len(weights)
+                noise_std = num_params / self.epsilon
+                print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
             for y in [0,1]:
@@ -150,13 +152,22 @@ class Server(object):
                     w, loss, nc_ = local_model.fb_update(
                                     model=copy.deepcopy(self.model), global_round=round_, 
                                         learning_rate = learning_rate / (round_+1), local_epochs = local_epochs, 
-                                        optimizer = optimizer, lbd = lbd, m_yz = m_yz, ε = self.ε)
+                                        optimizer = optimizer, lbd = lbd, m_yz = m_yz, epsilon = self.epsilon)
                     nc.append(nc_)
                     local_weights.append(copy.deepcopy(w))
                     local_losses.append(copy.deepcopy(loss))
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.epsilon:
+                    num_params = len(weights)
+                    each_epsilon = self.epsilon / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.normal(0.0, 1 / each_epsilon, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -177,7 +188,7 @@ class Server(object):
                                                 idxs=self.clients_idx[c], batch_size = self.batch_size, option = "FB-Variant1", 
                                                 seed = self.seed, prn = self.train_prn, Z = self.Z)
                     # validation dataset inference
-                    acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, ε = self.ε) 
+                    acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, epsilon = self.epsilon) 
                     list_acc.append(acc)
                     
                     for yz in n_yz:
@@ -227,7 +238,7 @@ class Server(object):
                     tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -237,10 +248,11 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
         # support more than 2 groups
         else:
@@ -280,13 +292,22 @@ class Server(object):
                     w, loss, nc_ = local_model.fb2_update(
                                     model=copy.deepcopy(self.model), global_round=round_, 
                                         learning_rate = learning_rate, local_epochs = local_epochs, 
-                                        optimizer = optimizer, m_yz = m_yz, lbd = lbd, ε = self.ε)
+                                        optimizer = optimizer, m_yz = m_yz, lbd = lbd, epsilon = self.epsilon)
                     nc.append(nc_)
                     local_weights.append(copy.deepcopy(w))
                     local_losses.append(copy.deepcopy(loss))
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.epsilon:
+                    num_params = len(weights)
+                    each_epsilon = self.epsilon / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.normal(0.0, 1 / each_epsilon, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -307,7 +328,7 @@ class Server(object):
                                                 idxs=self.clients_idx[c], batch_size = self.batch_size, option = "FB-Variant1", 
                                                 seed = self.seed, prn = self.train_prn, Z = self.Z)
                     # validation dataset inference
-                    acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, train = True, ε = self.ε) 
+                    acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, train = True, epsilon = self.epsilon) 
                     list_acc.append(acc)
                     
                     for yz in n_yz:
@@ -351,7 +372,7 @@ class Server(object):
 
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -361,10 +382,11 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
     def FFLFB(self, num_rounds = 10, local_epochs = 30, learning_rate = 0.005, optimizer = 'adam', alpha = (0.3,0.3,0.3)):
         # new algorithm for demographic parity, add weights directly, signed gradient-based algorithm
@@ -378,6 +400,11 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
 
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
@@ -396,13 +423,22 @@ class Server(object):
                 w, loss, nc_, lbd_, m_yz_ = local_model.local_fb(
                                 model=copy.deepcopy(self.model), 
                                     learning_rate = learning_rate, local_epochs = local_epochs, 
-                                    optimizer = optimizer, alpha = alpha[idx], lbd = lbd[idx], m_yz = m_yz[idx], ε = self.ε)
+                                    optimizer = optimizer, alpha = alpha[idx], lbd = lbd[idx], m_yz = m_yz[idx], epsilon = self.epsilon)
                 lbd[idx], m_yz[idx], nc[idx] = lbd_, m_yz_, nc_
                 local_weights.append(copy.deepcopy(w))
                 local_losses.append(copy.deepcopy(loss))
 
             # update global weights
             weights = weighted_average_weights(local_weights, nc, sum(nc))
+            # add client-level DP noise after aggregation
+            if self.epsilon:
+                num_params = len(weights)
+                each_epsilon = self.epsilon / num_params
+                for key in weights:
+                    noise = torch.from_numpy(
+                        np.random.normal(0.0, 1 / each_epsilon, size=weights[key].shape)
+                    ).type(weights[key].dtype)
+                    weights[key] += noise
             self.model.load_state_dict(weights)
 
             loss_avg = sum(local_losses) / len(local_losses)
@@ -423,7 +459,7 @@ class Server(object):
                                             idxs=self.clients_idx[c], batch_size = self.batch_size, option = "FB-Variant1", 
                                             seed = self.seed, prn = self.train_prn, Z = self.Z)
                 # validation dataset inference
-                acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, ε = self.ε) 
+                acc, loss, n_yz_c, acc_loss, fair_loss, loss_yz_c = local_model.inference(model = self.model, epsilon = self.epsilon) 
                 list_acc.append(acc)
                 
                 for yz in n_yz:
@@ -451,7 +487,7 @@ class Server(object):
                 tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)  
 
         # Test inference after completion of training
-        test_acc, n_yz= self.test_inference()
+        test_acc, n_yz, test_eod = self.test_inference()
         rd = self.disparity(n_yz)
 
         if self.prn:
@@ -461,15 +497,16 @@ class Server(object):
 
             # Compute fairness metric
             print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+            print("|---- Test EOD     : {:.4f}".format(test_eod))
 
             print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-        if self.ret: return test_acc, rd, self.model
+        if self.ret: return test_acc, rd, test_eod, self.model
 
     def test_inference(self, model = None, test_dataset = None):
 
-        """ 
-        Returns the test accuracy and fairness level.
+        """
+        Returns the test accuracy, DP counts and EOD value.
         """
         # set seed
         np.random.seed(self.seed)
@@ -485,7 +522,9 @@ class Server(object):
         for y in [0,1]:
             for z in range(self.Z):
                 n_yz[(y,z)] = 0
-        
+
+        y_true_all, y_pred_all, z_all = [], [], []
+
         testloader = DataLoader(test_dataset, batch_size=self.batch_size,
                                 shuffle=False)
 
@@ -501,13 +540,29 @@ class Server(object):
             bool_correct = torch.eq(pred_labels, labels)
             correct += torch.sum(bool_correct).item()
             total += len(labels)
-            
+
             for y,z in n_yz:
-                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()  
+                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()
+
+            y_true_all.append(labels.cpu())
+            y_pred_all.append(pred_labels.cpu())
+            z_all.append(sensitive.cpu())
 
         accuracy = correct/total
 
-        return accuracy, n_yz
+        y_true_all = torch.cat(y_true_all)
+        y_pred_all = torch.cat(y_pred_all)
+        z_all = torch.cat(z_all)
+        eod_value = compute_eod(y_true_all, y_pred_all, z_all)
+
+        # ensure epsilon-differential privacy when reporting counts
+        if self.epsilon:
+            num_params = len(self.model.state_dict())
+            each_epsilon = self.epsilon / (num_params + self.Z * 2)
+            for yz in n_yz:
+                n_yz[yz] += np.random.normal(loc=0.0, scale=1/each_epsilon)
+
+        return accuracy, n_yz, eod_value
 
 class Client(object):
     def __init__(self, dataset, idxs, batch_size, option, seed = 0, prn = True, penalty = 500, Z = 2):
@@ -541,7 +596,7 @@ class Client(object):
                                      batch_size=max(int(len(idxs_val)/10),10), shuffle=False)
         return trainloader, validloader
 
-    def fb_update(self, model, global_round, learning_rate, local_epochs, optimizer, lbd, m_yz, ε):
+    def fb_update(self, model, global_round, learning_rate, local_epochs, optimizer, lbd, m_yz, epsilon):
         ####### Update ##########
         # Set mode to train model
         model.train()
@@ -594,17 +649,17 @@ class Client(object):
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
 
         # weight, loss
-        # ensure ε-differential privacy
+        # ensure epsilon-differential privacy
         private_parameters = copy.deepcopy(model.state_dict())
         num_params = len(model.state_dict())
-        each_ε = ε / (num_params + self.Z * 2)
+        each_epsilon = epsilon / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
-    def fb2_update(self, model, global_round, learning_rate, local_epochs, optimizer, lbd, m_yz, ε):
+    def fb2_update(self, model, global_round, learning_rate, local_epochs, optimizer, lbd, m_yz, epsilon):
         # Set mode to train model
         model.train()
         epoch_loss = []
@@ -651,17 +706,17 @@ class Client(object):
                 batch_loss.append(loss.item())
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
 
-        # ensure ε-differential privacy
+        # ensure epsilon-differential privacy
         private_parameters = copy.deepcopy(model.state_dict())
         num_params = len(model.state_dict())
-        each_ε = ε / (num_params + self.Z * 2)
+        each_epsilon = epsilon / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
-    def local_fb(self, model, learning_rate, local_epochs, optimizer, alpha, lbd = None, m_yz = None, ε = 1):
+    def local_fb(self, model, learning_rate, local_epochs, optimizer, alpha, lbd = None, m_yz = None, epsilon = 1):
         if self.Z == 2:
             # Set mode to train model
             epoch_loss = []
@@ -814,17 +869,17 @@ class Client(object):
                     lbd[(0,z)] = max(0, min(lbd[(0,z)], 2*(m_yz[(1,0)]+m_yz[(0,0)])/len(self.train_dataset)))
                     lbd[(1,z)] = 2*(m_yz[(1,0)]+m_yz[(0,0)])/len(self.train_dataset) - lbd[(0,z)]
 
-        # ensure ε-differential privacy
+        # ensure epsilon-differential privacy
         private_parameters = copy.deepcopy(model.state_dict())
         num_params = len(model.state_dict())
-        each_ε = ε / num_params
+        each_epsilon = epsilon / num_params
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 
-    def inference(self, model, train = False, ε = 1):
+    def inference(self, model, train = False, epsilon = 1):
         """ 
         Returns the inference accuracy, 
                                 loss, 
@@ -886,10 +941,10 @@ class Client(object):
         if self.option in ["FairBatch", "FB-Variant1"]:
             private_parameters = copy.deepcopy(model.state_dict())
             num_params = len(model.state_dict())
-            each_ε = ε / (num_params + self.Z * 2)
+            each_epsilon = epsilon / (num_params + self.Z * 2)
 
             for yz in loss_yz:
-                loss_yz[yz] += loss_yz[yz] + np.random.laplace(loc = 0, scale = 1/each_ε)
+                loss_yz[yz] += loss_yz[yz] + np.random.normal(loc = 0, scale = 1/each_epsilon)
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, loss_yz
         else:
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, None
