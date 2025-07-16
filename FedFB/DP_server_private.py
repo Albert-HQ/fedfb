@@ -123,10 +123,12 @@ class Server(object):
             weights = self.model.state_dict()
 
             if self.prn and self.epsilon:
+
                 noise_std = 1 / self.epsilon
                 print(
                     f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}"
                 )
+
 
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
@@ -162,10 +164,12 @@ class Server(object):
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
                 # add client-level DP noise after aggregation
                 if self.epsilon:
+
                     noise_std = 1 / self.epsilon
                     for key in weights:
                         noise = torch.from_numpy(
                             np.random.normal(0.0, noise_std, size=weights[key].shape)
+
                         ).type(weights[key].dtype)
                         weights[key] += noise
                 self.model.load_state_dict(weights)
@@ -301,10 +305,12 @@ class Server(object):
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
                 # add client-level DP noise after aggregation
                 if self.epsilon:
+
                     noise_std = 1 / self.epsilon
                     for key in weights:
                         noise = torch.from_numpy(
                             np.random.normal(0.0, noise_std, size=weights[key].shape)
+
                         ).type(weights[key].dtype)
                         weights[key] += noise
                 self.model.load_state_dict(weights)
@@ -399,6 +405,25 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
 
         if self.prn and self.epsilon:
             noise_std = 1 / self.epsilon
@@ -432,10 +457,12 @@ class Server(object):
             weights = weighted_average_weights(local_weights, nc, sum(nc))
             # add client-level DP noise after aggregation
             if self.epsilon:
+
                 noise_std = 1 / self.epsilon
                 for key in weights:
                     noise = torch.from_numpy(
                         np.random.normal(0.0, noise_std, size=weights[key].shape)
+
                     ).type(weights[key].dtype)
                     weights[key] += noise
             self.model.load_state_dict(weights)
@@ -556,6 +583,7 @@ class Server(object):
 
         # ensure epsilon-differential privacy when reporting counts
         if self.epsilon:
+
             noise_std = 1 / self.epsilon
             for yz in n_yz:
                 n_yz[yz] += np.random.normal(loc=0.0, scale=noise_std)
@@ -653,6 +681,7 @@ class Client(object):
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc=0, scale=noise_std)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -705,10 +734,12 @@ class Client(object):
 
         # ensure epsilon-differential privacy
         private_parameters = copy.deepcopy(model.state_dict())
+
         noise_std = 1 / epsilon
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc=0, scale=noise_std)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -867,10 +898,12 @@ class Client(object):
 
         # ensure epsilon-differential privacy
         private_parameters = copy.deepcopy(model.state_dict())
+
         noise_std = 1 / epsilon
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc=0, scale=noise_std)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 
@@ -935,10 +968,12 @@ class Client(object):
         accuracy = correct/total
         if self.option in ["FairBatch", "FB-Variant1"]:
             private_parameters = copy.deepcopy(model.state_dict())
+
             noise_std = 1 / epsilon
 
             for yz in loss_yz:
                 loss_yz[yz] += loss_yz[yz] + np.random.normal(loc=0, scale=noise_std)
+
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, loss_yz
         else:
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, None
