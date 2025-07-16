@@ -31,5 +31,6 @@ if __name__ == "__main__":
         local_epochs=args.local_epochs,
         learning_rate=args.learning_rate,
         alpha=args.alpha,
+    )
 
 
