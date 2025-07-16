@@ -15,6 +15,8 @@ def parse_args():
     parser.add_argument("--local_epochs", type=int, default=2)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--alpha", type=float, default=1.0)
+    parser.add_argument("--dirichlet_alpha", type=float, default=0.1, help="Dirichlet split alpha")
+
     return parser.parse_args()
 
 
@@ -31,6 +33,8 @@ if __name__ == "__main__":
         local_epochs=args.local_epochs,
         learning_rate=args.learning_rate,
         alpha=args.alpha,
+        dirichlet_alpha=args.dirichlet_alpha,
     )
+
 
 

@@ -4,6 +4,20 @@
 import pandas as pd
 
 from DP_server_private import *
+from DP_load_dataset import (
+    make_adult_info,
+    make_compas_info,
+    synthetic_info,
+    communities_info,
+    communities_z,
+    communities_num_features,
+    bank_info,
+    bank_z,
+    bank_num_features,
+)
+
+
+from DP_server_private import *
 from DP_load_dataset import *
 
 try:
@@ -14,7 +28,8 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     RAY_AVAILABLE = False
 
-def run_dp(method, model, dataset, prn = True, seed = 123, epsilon = 1, trial = False, **kwargs):
+def run_dp(method, model, dataset, prn=True, seed=123, epsilon=1, trial=False, dirichlet_alpha=0.1, **kwargs):
+
     # choose the model
     if model == 'logistic regression':
         arc = logReg
@@ -28,9 +43,10 @@ def run_dp(method, model, dataset, prn = True, seed = 123, epsilon = 1, trial = 
     if dataset == 'synthetic':
         Z, num_features, info = 2, 3, synthetic_info
     elif dataset == 'adult':
-        Z, num_features, info = 2, adult_num_features, adult_info
+        info, num_features = make_adult_info(alpha=dirichlet_alpha, seed=seed)
+        Z = 2
     elif dataset == 'compas':
-        Z, num_features, info = compas_z, compas_num_features, compas_info
+        Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
     elif dataset == 'communities':
         Z, num_features, info = communities_z, communities_num_features, communities_info
     elif dataset == 'bank':
@@ -54,9 +70,8 @@ def run_dp(method, model, dataset, prn = True, seed = 123, epsilon = 1, trial = 
     if not trial:
         return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
 
-def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
+def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha=0.1, resources_per_trial={'cpu':4}, **kwargs):
     """Hyperparameter tuning with Ray Tune (if available)."""
-
 
     if not RAY_AVAILABLE:
         raise ImportError("ray is required for sim_dp but is not installed")
@@ -73,9 +88,10 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
     if dataset == 'synthetic':
         Z, num_features, info = 2, 3, synthetic_info
     elif dataset == 'adult':
-        Z, num_features, info = 2, adult_num_features, adult_info
+        info, num_features = make_adult_info(alpha=dirichlet_alpha, seed=seed)
+        Z = 2
     elif dataset == 'compas':
-        Z, num_features, info = compas_z, compas_num_features, compas_info
+        Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
     elif dataset == 'communities':
         Z, num_features, info = communities_z, communities_num_features, communities_info
     elif dataset == 'bank':
@@ -90,8 +106,10 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         config = {'lr': tune.grid_search([.001, .005, .01]),
                 'alpha': tune.grid_search([.001, .05, .08, .1, .2, .5, 1, 2])}
 
-        def trainable(config): 
-            return run_dp(method = method, model = model, dataset = dataset, prn = False, trial = True, seed = seed, epsilon = epsilon, learning_rate = config['lr'], alpha = config['alpha'], **kwargs)
+        def trainable(config):
+            return run_dp(method=method, model=model, dataset=dataset, prn=False, trial=True,
+                          seed=seed, epsilon=epsilon, dirichlet_alpha=dirichlet_alpha,
+                          learning_rate=config['lr'], alpha=config['alpha'], **kwargs)
 
         asha_scheduler = ASHAScheduler(
             time_attr = 'iteration',
@@ -124,7 +142,18 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
-            result = run_dp(method = method, model = model, dataset = dataset, prn = False, epsilon = epsilon, seed = seed, learning_rate = learning_rate, alpha = alpha, **kwargs)
+            result = run_dp(
+                method=method,
+                model=model,
+                dataset=dataset,
+                prn=False,
+                epsilon=epsilon,
+                seed=seed,
+                dirichlet_alpha=dirichlet_alpha,
+                learning_rate=learning_rate,
+                alpha=alpha,
+                **kwargs,
+            )
             df = df.append(pd.DataFrame([result]))
         df = df.reset_index(drop = True)
         acc_mean, dp_mean = df.mean()
@@ -140,12 +169,38 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         if num_clients <= 2:
             params_array = cartesian([[.001, .01, .1]]*num_clients).tolist()
             # params_array = cartesian([[.01]]*num_clients).tolist()
-            def trainable(config): 
-                return run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = config['alpha'], **kwargs)
+
+            def trainable(config):
+                return run_dp(
+                    method=method,
+                    model=model,
+                    dataset=dataset,
+                    epsilon=epsilon,
+                    prn=False,
+                    trial=True,
+                    seed=seed,
+                    dirichlet_alpha=dirichlet_alpha,
+                    learning_rate=0.005,
+                    alpha=config['alpha'],
+                    **kwargs,
+                )
         else:
             params_array = [.001, .002, .005, .01, .02, .05, .1, 1]
-            def trainable(config): 
-                return run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = [config['alpha']] * num_clients, **kwargs)
+            def trainable(config):
+                return run_dp(
+                    method=method,
+                    model=model,
+                    dataset=dataset,
+                    epsilon=epsilon,
+                    prn=False,
+                    trial=True,
+                    seed=seed,
+                    dirichlet_alpha=dirichlet_alpha,
+                    learning_rate=0.005,
+                    alpha=[config['alpha']] * num_clients,
+                    **kwargs,
+                )
+
         config = {'alpha': tune.grid_search(params_array)}
 
         asha_scheduler = ASHAScheduler(
@@ -180,9 +235,33 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
             if num_clients <= 2:
-                result = run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, seed = seed, learning_rate = 0.005, alpha = alpha, **kwargs)
+
+                result = run_dp(
+                    method=method,
+                    model=model,
+                    dataset=dataset,
+                    epsilon=epsilon,
+                    prn=False,
+                    seed=seed,
+                    dirichlet_alpha=dirichlet_alpha,
+                    learning_rate=0.005,
+                    alpha=alpha,
+                    **kwargs,
+                )
             else:
-                result = run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, seed = seed, learning_rate = 0.005, alpha = [alpha] * num_clients, **kwargs)
+                result = run_dp(
+                    method=method,
+                    model=model,
+                    dataset=dataset,
+                    epsilon=epsilon,
+                    prn=False,
+                    seed=seed,
+                    dirichlet_alpha=dirichlet_alpha,
+                    learning_rate=0.005,
+                    alpha=[alpha] * num_clients,
+                    **kwargs,
+                )
+
             df = df.append(pd.DataFrame([result]))
         df = df.reset_index(drop = True)
         acc_mean, dp_mean = df.mean()
@@ -194,13 +273,24 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         Warning('Does not support this method!')
         exit(1)
 
-def sim_dp_man(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, **kwargs):
+
+def sim_dp_man(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha=0.1, **kwargs):
 
     """Run multiple simulations with differential privacy and report statistics."""
     results = []
     for seed in range(num_sim):
         results.append(
-            run_dp(method, model, dataset, prn=True, epsilon=epsilon, seed=seed, trial=False, **kwargs)
+            run_dp(
+                method,
+                model,
+                dataset,
+                prn=True,
+                epsilon=epsilon,
+                seed=seed,
+                trial=False,
+                dirichlet_alpha=dirichlet_alpha,
+                **kwargs,
+            )
         )
 
     df = pd.DataFrame(results)
