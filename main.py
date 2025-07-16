@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 
 # Add the library path
 working_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,11 +24,12 @@ if __name__ == "__main__":
         method="fedfb",
         model="multilayer perceptron",
         dataset="adult",
-        ε=args.epsilon,
+        epsilon=args.epsilon,
         num_sim=1,
         seed=24,
         num_rounds=args.num_rounds,
         local_epochs=args.local_epochs,
         learning_rate=args.learning_rate,
         alpha=args.alpha,
+
 

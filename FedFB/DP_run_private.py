@@ -14,7 +14,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     RAY_AVAILABLE = False
 
-def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False, **kwargs):
+def run_dp(method, model, dataset, prn = True, seed = 123, epsilon = 1, trial = False, **kwargs):
     # choose the model
     if model == 'logistic regression':
         arc = logReg
@@ -40,7 +40,7 @@ def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False
         exit(1)
 
     # set up the server
-    server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = prn, trial = trial, ε = ε)
+    server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = prn, trial = trial, epsilon = epsilon)
 
     # execute
     if method == 'fedfb':
@@ -53,8 +53,8 @@ def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False
 
     if not trial:
         return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
-
-def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
+      
+def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
     """Hyperparameter tuning with Ray Tune (if available)."""
 
     if not RAY_AVAILABLE:
@@ -90,7 +90,7 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
                 'alpha': tune.grid_search([.001, .05, .08, .1, .2, .5, 1, 2])}
 
         def trainable(config): 
-            return run_dp(method = method, model = model, dataset = dataset, prn = False, trial = True, seed = seed, ε = ε, learning_rate = config['lr'], alpha = config['alpha'], **kwargs)
+            return run_dp(method = method, model = model, dataset = dataset, prn = False, trial = True, seed = seed, epsilon = epsilon, learning_rate = config['lr'], alpha = config['alpha'], **kwargs)
 
         asha_scheduler = ASHAScheduler(
             time_attr = 'iteration',
@@ -114,7 +114,7 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
 
         print('--------------------------------Start Simulations--------------------------------')
         # get test result of the trained model
-        server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
+        server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, epsilon = epsilon, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
         test_acc, n_yz, test_eod = server.test_inference(trained_model)
@@ -123,7 +123,7 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
-            result = run_dp(method = method, model = model, dataset = dataset, prn = False, ε = ε, seed = seed, learning_rate = learning_rate, alpha = alpha, **kwargs)
+            result = run_dp(method = method, model = model, dataset = dataset, prn = False, epsilon = epsilon, seed = seed, learning_rate = learning_rate, alpha = alpha, **kwargs)
             df = df.append(pd.DataFrame([result]))
         df = df.reset_index(drop = True)
         acc_mean, dp_mean = df.mean()
@@ -140,11 +140,11 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
             params_array = cartesian([[.001, .01, .1]]*num_clients).tolist()
             # params_array = cartesian([[.01]]*num_clients).tolist()
             def trainable(config): 
-                return run_dp(method = method, model = model, dataset = dataset, ε = ε, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = config['alpha'], **kwargs)
+                return run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = config['alpha'], **kwargs)
         else:
             params_array = [.001, .002, .005, .01, .02, .05, .1, 1]
             def trainable(config): 
-                return run_dp(method = method, model = model, dataset = dataset, ε = ε, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = [config['alpha']] * num_clients, **kwargs)
+                return run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, trial = True, seed = seed, learning_rate = 0.005, alpha = [config['alpha']] * num_clients, **kwargs)
         config = {'alpha': tune.grid_search(params_array)}
 
         asha_scheduler = ASHAScheduler(
@@ -169,7 +169,7 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
 
         print('--------------------------------Start Simulations--------------------------------')
         # get test result of the trained model
-        server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, ε = ε, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
+        server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, epsilon = epsilon, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
         test_acc, n_yz, test_eod = server.test_inference(trained_model)
@@ -179,9 +179,9 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
             if num_clients <= 2:
-                result = run_dp(method = method, model = model, dataset = dataset, ε = ε, prn = False, seed = seed, learning_rate = 0.005, alpha = alpha, **kwargs)
+                result = run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, seed = seed, learning_rate = 0.005, alpha = alpha, **kwargs)
             else:
-                result = run_dp(method = method, model = model, dataset = dataset, ε = ε, prn = False, seed = seed, learning_rate = 0.005, alpha = [alpha] * num_clients, **kwargs)
+                result = run_dp(method = method, model = model, dataset = dataset, epsilon = epsilon, prn = False, seed = seed, learning_rate = 0.005, alpha = [alpha] * num_clients, **kwargs)
             df = df.append(pd.DataFrame([result]))
         df = df.reset_index(drop = True)
         acc_mean, dp_mean = df.mean()
@@ -193,12 +193,14 @@ def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_
         Warning('Does not support this method!')
         exit(1)
 
-def sim_dp_man(method, model, dataset, ε = 1, num_sim = 5, seed = 0, **kwargs):
+
+def sim_dp_man(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, **kwargs):
+
     """Run multiple simulations with differential privacy and report statistics."""
     results = []
     for seed in range(num_sim):
         results.append(
-            run_dp(method, model, dataset, prn=True, ε=ε, seed=seed, trial=False, **kwargs)
+            run_dp(method, model, dataset, prn=True, epsilon=epsilon, seed=seed, trial=False, **kwargs)
         )
 
     df = pd.DataFrame(results)
