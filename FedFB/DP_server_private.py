@@ -127,6 +127,7 @@ class Server(object):
                 noise_std = num_params / self.epsilon
                 print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
 
+
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
             for y in [0,1]:
@@ -160,12 +161,14 @@ class Server(object):
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
                 # add client-level DP noise after aggregation
+
                 if self.epsilon:
                     num_params = len(weights)
                     each_epsilon = self.epsilon / num_params
                     for key in weights:
                         noise = torch.from_numpy(
                             np.random.normal(0.0, 1 / each_epsilon, size=weights[key].shape)
+
                         ).type(weights[key].dtype)
                         weights[key] += noise
                 self.model.load_state_dict(weights)
@@ -401,10 +404,12 @@ class Server(object):
         start_time = time.time()
         weights = self.model.state_dict()
 
+
         if self.prn and self.epsilon:
             num_params = len(weights)
             noise_std = num_params / self.epsilon
             print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
 
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
@@ -431,12 +436,14 @@ class Server(object):
             # update global weights
             weights = weighted_average_weights(local_weights, nc, sum(nc))
             # add client-level DP noise after aggregation
+
             if self.epsilon:
                 num_params = len(weights)
                 each_epsilon = self.epsilon / num_params
                 for key in weights:
                     noise = torch.from_numpy(
                         np.random.normal(0.0, 1 / each_epsilon, size=weights[key].shape)
+
                     ).type(weights[key].dtype)
                     weights[key] += noise
             self.model.load_state_dict(weights)
@@ -712,7 +719,9 @@ class Client(object):
         each_epsilon = epsilon / (num_params + self.Z * 2)
 
         for key in model.state_dict():
+
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -875,7 +884,9 @@ class Client(object):
         each_epsilon = epsilon / num_params
 
         for key in model.state_dict():
+
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 

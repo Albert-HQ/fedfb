@@ -53,7 +53,7 @@ def run_dp(method, model, dataset, prn = True, seed = 123, epsilon = 1, trial = 
 
     if not trial:
         return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
-
+      
 def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
     """Hyperparameter tuning with Ray Tune (if available)."""
 
@@ -193,7 +193,9 @@ def sim_dp(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, resources
         Warning('Does not support this method!')
         exit(1)
 
+
 def sim_dp_man(method, model, dataset, epsilon = 1, num_sim = 5, seed = 0, **kwargs):
+
     """Run multiple simulations with differential privacy and report statistics."""
     results = []
     for seed in range(num_sim):
