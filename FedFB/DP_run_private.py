@@ -13,6 +13,7 @@ from DP_load_dataset import (
     bank_num_features,
 )
 
+
 try:
     from ray.tune.progress_reporter import CLIReporter
     from ray import tune
@@ -22,6 +23,7 @@ except ImportError:  # pragma: no cover - optional dependency
     RAY_AVAILABLE = False
 
 def run_dp(method, model, dataset, prn=True, seed=123, epsilon=1, trial=False, dirichlet_alpha=0.1, **kwargs):
+
     # choose the model
     if model == 'logistic regression':
         arc = logReg
@@ -39,6 +41,7 @@ def run_dp(method, model, dataset, prn=True, seed=123, epsilon=1, trial=False, d
         Z = 2
     elif dataset == 'compas':
         Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
+
     elif dataset == 'bank':
         Z, num_features, info = bank_z, bank_num_features, bank_info
     else:
@@ -82,6 +85,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         Z = 2
     elif dataset == 'compas':
         Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
+
     elif dataset == 'bank':
         Z, num_features, info = bank_z, bank_num_features, bank_info
     else:
@@ -157,6 +161,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         if num_clients <= 2:
             params_array = cartesian([[.001, .01, .1]]*num_clients).tolist()
             # params_array = cartesian([[.01]]*num_clients).tolist()
+
             def trainable(config):
                 return run_dp(
                     method=method,
@@ -187,6 +192,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
                     alpha=[config['alpha']] * num_clients,
                     **kwargs,
                 )
+
         config = {'alpha': tune.grid_search(params_array)}
 
         asha_scheduler = ASHAScheduler(
@@ -221,6 +227,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
             if num_clients <= 2:
+
                 result = run_dp(
                     method=method,
                     model=model,
@@ -246,6 +253,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
                     alpha=[alpha] * num_clients,
                     **kwargs,
                 )
+
             df = df.append(pd.DataFrame([result]))
         df = df.reset_index(drop = True)
         acc_mean, dp_mean = df.mean()
@@ -258,6 +266,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         exit(1)
 
 def sim_dp_man(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha=0.1, **kwargs):
+
     """Run multiple simulations with differential privacy and report statistics."""
     results = []
     for seed in range(num_sim):

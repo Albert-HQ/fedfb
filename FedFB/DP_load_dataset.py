@@ -148,6 +148,7 @@ _compas_test_df  = compas.iloc[int(len(compas) * .7):]
 
 COMPAS_NUM_CLIENTS = 3
 
+
 def make_compas_info(alpha=0.1, seed=1):
     """Generate COMPAS dataset split with Dirichlet parameter ``alpha``."""
     np.random.seed(seed)
