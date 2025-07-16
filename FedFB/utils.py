@@ -12,6 +12,33 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 class LoadData(Dataset):
     def __init__(self, df, pred_var, sen_var):
+        """Wrapper around a pandas DataFrame so it can be used as a PyTorch
+        ``Dataset``.  Some datasets occasionally ship with whitespace around
+        column names which leads to confusing ``KeyError`` issues when they are
+        accessed programmatically.  To be robust we normalise the column names
+        before looking up ``pred_var`` or ``sen_var``.
+        """
+
+        df = df.copy()
+        df.columns = [c.strip() for c in df.columns]
+
+        # try a case-insensitive match if the exact column is missing
+        if pred_var not in df.columns:
+            for c in df.columns:
+                if c.strip().lower() == pred_var.lower():
+                    df.rename(columns={c: pred_var}, inplace=True)
+                    break
+        if sen_var not in df.columns:
+            for c in df.columns:
+                if c.strip().lower() == sen_var.lower():
+                    df.rename(columns={c: sen_var}, inplace=True)
+                    break
+
+        if pred_var not in df.columns:
+            raise KeyError(f"{pred_var} not found in DataFrame columns {list(df.columns)}")
+        if sen_var not in df.columns:
+            raise KeyError(f"{sen_var} not found in DataFrame columns {list(df.columns)}")
+
         # 确保标签是整数类型
         self.y = df[pred_var].values.astype(np.int64)
 
@@ -385,8 +412,11 @@ def process_csv(dir_name, filename, label_name, favorable_class, sensitive_attri
     only support binary sensitive attributes -> [gender, race] -> 4 sensitive groups 
     """
 
-    df = pd.read_csv(os.path.join('FedFB', dir_name, filename), delimiter = ',', header = header, na_values = na_values)
-    if header == None: df.columns = columns
+    df = pd.read_csv(os.path.join('FedFB', dir_name, filename), delimiter=',', header=header, na_values=na_values)
+    if header is None:
+        df.columns = columns
+    df.columns = [c.strip() for c in df.columns]
+    features_to_keep = [c.strip() for c in features_to_keep]
     df = df[features_to_keep]
 
     # apply one-hot encoding to convert the categorical attributes into vectors
@@ -504,32 +534,39 @@ import numpy as np
 import torch
 
 def compute_eod(y_true, y_pred, sensitive):
-    """
-    Equal Opportunity Difference (Hardt 2016)：
-        EOD = |TPR_z=1 - TPR_z=0|
-    其中 TPR =  P(ŷ=1 | y=1, z)
+    """Compute Equal Opportunity Difference for any number of groups.
 
-    参数
-    ----
-    y_true    : Tensor/ndarray, 真实标签 (0/1)
-    y_pred    : Tensor/ndarray, 预测标签 (0/1 或概率>0.5)
-    sensitive : Tensor/ndarray, 敏感属性 z (0/1)
+    Parameters
+    ----------
+    y_true : Tensor or ndarray
+        Ground truth labels (0/1).
+    y_pred : Tensor or ndarray
+        Predicted labels (0/1 or probabilities > 0.5).
+    sensitive : Tensor or ndarray
+        Sensitive attribute ``z``. Can contain more than two groups.
 
-    返回
-    ----
-    float, eod 值
+    Returns
+    -------
+    float
+        The maximum absolute difference between each group's TPR and the
+        overall TPR.
     """
-    # → 全转成 numpy，方便广播运算
+
+    # Convert to numpy for easy vectorised operations
     y_true = y_true.detach().cpu().numpy() if torch.is_tensor(y_true) else np.asarray(y_true)
     y_pred = y_pred.detach().cpu().numpy() if torch.is_tensor(y_pred) else np.asarray(y_pred)
     sensitive = sensitive.detach().cpu().numpy() if torch.is_tensor(sensitive) else np.asarray(sensitive)
 
-    # 只取正例 (y=1) 再分组
+    # Mask for positive examples
     pos_mask = (y_true == 1)
-    grp0 = (pos_mask) & (sensitive == 0)
-    grp1 = (pos_mask) & (sensitive == 1)
+    if not np.any(pos_mask):
+        return 0.0
 
-    # 避免除 0，用 1e‑9 平滑
-    tpr0 = (y_pred[grp0] == 1).mean() if grp0.any() else 0.0
-    tpr1 = (y_pred[grp1] == 1).mean() if grp1.any() else 0.0
-    return abs(tpr1 - tpr0)
+    overall_tpr = (y_pred[pos_mask] == 1).mean()
+    eod = 0.0
+    for g in np.unique(sensitive):
+        grp_mask = pos_mask & (sensitive == g)
+        if np.any(grp_mask):
+            tpr_g = (y_pred[grp_mask] == 1).mean()
+            eod = max(eod, abs(tpr_g - overall_tpr))
+    return eod
