@@ -1,13 +1,11 @@
 import os
 import sys
-import argparse
 
 # Add the library path
 working_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(1, os.path.join(working_dir, 'FedFB'))
 
 from DP_run_private import sim_dp_man
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run FedFB with client-level DP")
@@ -32,5 +30,4 @@ if __name__ == "__main__":
         local_epochs=args.local_epochs,
         learning_rate=args.learning_rate,
         alpha=args.alpha,
-    )
 

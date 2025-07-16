@@ -124,6 +124,7 @@ class Server(object):
 
             if self.prn and self.ε:
                 num_params = len(weights)
+
                 noise_std = num_params / self.ε
                 print(f"Using client-level DP: ε={self.ε}, noise std={noise_std:.4f}")
 
@@ -305,7 +306,7 @@ class Server(object):
                     each_ε = self.ε / num_params
                     for key in weights:
                         noise = torch.from_numpy(
-                            np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
+                            np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
                         ).type(weights[key].dtype)
                         weights[key] += noise
                 self.model.load_state_dict(weights)
@@ -403,8 +404,9 @@ class Server(object):
 
         if self.prn and self.ε:
             num_params = len(weights)
-            noise_std = num_params / self.ε
-            print(f"Using client-level DP: ε={self.ε}, noise std={noise_std:.4f}")
+
+            noise_scale = num_params / self.ε
+            print(f"Using client-level DP: ε={self.ε}, noise scale={noise_scale:.4f}")
 
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
@@ -561,7 +563,6 @@ class Server(object):
             each_ε = self.ε / (num_params + self.Z * 2)
             for yz in n_yz:
                 n_yz[yz] += np.random.normal(loc=0.0, scale=1/each_ε)
-
         return accuracy, n_yz, eod_value
 
 class Client(object):
