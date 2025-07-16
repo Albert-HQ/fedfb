@@ -84,8 +84,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -138,8 +138,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -188,8 +188,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -284,8 +284,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -337,8 +337,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
@@ -386,8 +386,8 @@ def sim_dp(method, model, synthetic_info, num_sim = 5, seed = 0, resources_per_t
         server = Server(arc(num_features=num_features, num_classes=2, seed = seed), info, train_prn = False, seed = seed, Z = Z, ret = True, prn = False)
         trained_model = copy.deepcopy(server.model)
         trained_model.load_state_dict(torch.load(os.path.join(best_trial.checkpoint.value, 'checkpoint')))
-        test_acc, n_yz = server.test_inference(trained_model)
-        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz)}])
+        test_acc, n_yz, test_eod = server.test_inference(trained_model)
+        df = pd.DataFrame([{'accuracy': test_acc, 'DP Disp': DPDisparity(n_yz), 'EOD': test_eod}])
 
         # use the same hyperparameters for other seeds
         for seed in range(1, num_sim):
