@@ -400,6 +400,20 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
 
         if self.prn and self.epsilon:
             num_params = len(weights)
@@ -713,6 +727,7 @@ class Client(object):
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -876,6 +891,7 @@ class Client(object):
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 

@@ -78,9 +78,11 @@ features_to_keep = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 
 label_name = 'salary'
 
 adult = process_csv('adult', 'adult.data', label_name, ' >50K', sensitive_attributes, [' Female'], categorical_attributes, continuous_attributes, features_to_keep, na_values = [], header = None, columns = features_to_keep)
+
 adult_test_df = process_csv('adult', 'adult.test', label_name, ' >50K.', sensitive_attributes, [' Female'], categorical_attributes, continuous_attributes, features_to_keep, na_values = [], header = None, columns = features_to_keep) # the distribution is very different from training distribution
 adult_test_df['native-country_ Holand-Netherlands'] = 0
 adult_test_df = adult_test_df[adult.columns]
+
 
 ADULT_NUM_CLIENTS = 5
 
@@ -117,7 +119,9 @@ def make_adult_info(alpha=0.1, seed=1):
         20,
     )
     train_ds = LoadData(adult, 'salary', 'z')
+
     test_ds = LoadData(adult_test_df, 'salary', 'z')
+
     num_features = len(adult.columns) - 1
     return [train_ds, test_ds, clients_idx], num_features
 

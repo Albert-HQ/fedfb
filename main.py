@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--dirichlet_alpha", type=float, default=0.1, help="Dirichlet split alpha")
+
     return parser.parse_args()
 
 
