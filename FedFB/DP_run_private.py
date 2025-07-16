@@ -1,10 +1,18 @@
 # load modules and dataset
-from ray.tune.progress_reporter import CLIReporter
+"""Utilities for running federated experiments with differential privacy."""
+
+import pandas as pd
+
 from DP_server_private import *
 from DP_load_dataset import *
-from ray import tune
-from ray.tune.schedulers import ASHAScheduler
-import pandas as pd
+
+try:
+    from ray.tune.progress_reporter import CLIReporter
+    from ray import tune
+    from ray.tune.schedulers import ASHAScheduler
+    RAY_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    RAY_AVAILABLE = False
 
 def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False, **kwargs):
     # choose the model
@@ -47,6 +55,10 @@ def run_dp(method, model, dataset, prn = True, seed = 123, ε = 1, trial = False
         return {'accuracy': acc, 'DP Disp': dpdisp, 'EOD': eod}
 
 def sim_dp(method, model, dataset, ε = 1, num_sim = 5, seed = 0, resources_per_trial = {'cpu':4}, **kwargs):
+    """Hyperparameter tuning with Ray Tune (if available)."""
+
+    if not RAY_AVAILABLE:
+        raise ImportError("ray is required for sim_dp but is not installed")
     # choose the model
     if model == 'logistic regression':
         arc = logReg
@@ -203,5 +215,5 @@ def sim_dp_man(method, model, dataset, ε = 1, num_sim = 5, seed = 0, **kwargs):
         "| Accuracy: %.4f(%.4f) | DP Disp: %.4f(%.4f) | EOD: %.4f(%.4f)"
         % (acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std)
     )
-
     return acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std
+
