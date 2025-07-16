@@ -37,4 +37,3 @@ if __name__ == "__main__":
         dirichlet_alpha=args.dirichlet_alpha,
     )
 
-

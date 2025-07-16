@@ -12,6 +12,33 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 class LoadData(Dataset):
     def __init__(self, df, pred_var, sen_var):
+        """Wrapper around a pandas DataFrame so it can be used as a PyTorch
+        ``Dataset``.  Some datasets occasionally ship with whitespace around
+        column names which leads to confusing ``KeyError`` issues when they are
+        accessed programmatically.  To be robust we normalise the column names
+        before looking up ``pred_var`` or ``sen_var``.
+        """
+
+        df = df.copy()
+        df.columns = [c.strip() for c in df.columns]
+
+        # try a case-insensitive match if the exact column is missing
+        if pred_var not in df.columns:
+            for c in df.columns:
+                if c.strip().lower() == pred_var.lower():
+                    df.rename(columns={c: pred_var}, inplace=True)
+                    break
+        if sen_var not in df.columns:
+            for c in df.columns:
+                if c.strip().lower() == sen_var.lower():
+                    df.rename(columns={c: sen_var}, inplace=True)
+                    break
+
+        if pred_var not in df.columns:
+            raise KeyError(f"{pred_var} not found in DataFrame columns {list(df.columns)}")
+        if sen_var not in df.columns:
+            raise KeyError(f"{sen_var} not found in DataFrame columns {list(df.columns)}")
+
         # 确保标签是整数类型
         self.y = df[pred_var].values.astype(np.int64)
 
@@ -385,8 +412,11 @@ def process_csv(dir_name, filename, label_name, favorable_class, sensitive_attri
     only support binary sensitive attributes -> [gender, race] -> 4 sensitive groups 
     """
 
-    df = pd.read_csv(os.path.join('FedFB', dir_name, filename), delimiter = ',', header = header, na_values = na_values)
-    if header == None: df.columns = columns
+    df = pd.read_csv(os.path.join('FedFB', dir_name, filename), delimiter=',', header=header, na_values=na_values)
+    if header is None:
+        df.columns = columns
+    df.columns = [c.strip() for c in df.columns]
+    features_to_keep = [c.strip() for c in features_to_keep]
     df = df[features_to_keep]
 
     # apply one-hot encoding to convert the categorical attributes into vectors
