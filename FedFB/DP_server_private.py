@@ -160,6 +160,7 @@ class Server(object):
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
                 # add client-level DP noise after aggregation
+
                 if self.epsilon:
                     num_params = len(weights)
                     each_epsilon = self.epsilon / num_params
@@ -400,12 +401,10 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
-
         if self.prn and self.epsilon:
             num_params = len(weights)
             noise_std = num_params / self.epsilon
             print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
-
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
         for round_ in tqdm(range(num_rounds)):
@@ -431,6 +430,7 @@ class Server(object):
             # update global weights
             weights = weighted_average_weights(local_weights, nc, sum(nc))
             # add client-level DP noise after aggregation
+
             if self.epsilon:
                 num_params = len(weights)
                 each_epsilon = self.epsilon / num_params
@@ -713,6 +713,7 @@ class Client(object):
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -876,6 +877,7 @@ class Client(object):
 
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
+
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 
