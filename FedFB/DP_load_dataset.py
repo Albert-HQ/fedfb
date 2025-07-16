@@ -143,10 +143,13 @@ compas = process_csv(
     features_to_keep
 )
 
+
 _compas_train_df = compas.iloc[: int(len(compas) * .7)]
 _compas_test_df  = compas.iloc[int(len(compas) * .7):]
 
+
 COMPAS_NUM_CLIENTS = 3
+
 
 def make_compas_info(alpha=0.1, seed=1):
     """Generate COMPAS dataset split with Dirichlet parameter ``alpha``."""
@@ -169,6 +172,7 @@ def make_compas_info(alpha=0.1, seed=1):
 
 # default split
 compas_z, compas_num_features, compas_info = make_compas_info()
+
 
 # Bank
 ######################################################
