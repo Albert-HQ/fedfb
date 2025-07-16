@@ -406,6 +406,11 @@ class Server(object):
             noise_std = num_params / self.epsilon
             print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
 
+        if self.prn and self.epsilon:
+            num_params = len(weights)
+            noise_std = num_params / self.epsilon
+            print(f"Using client-level DP: epsilon={self.epsilon}, noise std={noise_std:.4f}")
+
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
         for round_ in tqdm(range(num_rounds)):
@@ -875,7 +880,6 @@ class Client(object):
         private_parameters = copy.deepcopy(model.state_dict())
         num_params = len(model.state_dict())
         each_epsilon = epsilon / num_params
-
         for key in model.state_dict():
             private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_epsilon)
 

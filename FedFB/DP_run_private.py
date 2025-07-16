@@ -8,17 +8,11 @@ from DP_load_dataset import (
     make_adult_info,
     make_compas_info,
     synthetic_info,
-    communities_info,
-    communities_z,
-    communities_num_features,
     bank_info,
     bank_z,
     bank_num_features,
 )
 
-
-from DP_server_private import *
-from DP_load_dataset import *
 
 try:
     from ray.tune.progress_reporter import CLIReporter
@@ -47,8 +41,7 @@ def run_dp(method, model, dataset, prn=True, seed=123, epsilon=1, trial=False, d
         Z = 2
     elif dataset == 'compas':
         Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
-    elif dataset == 'communities':
-        Z, num_features, info = communities_z, communities_num_features, communities_info
+
     elif dataset == 'bank':
         Z, num_features, info = bank_z, bank_num_features, bank_info
     else:
@@ -92,8 +85,7 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         Z = 2
     elif dataset == 'compas':
         Z, num_features, info = make_compas_info(alpha=dirichlet_alpha, seed=seed)
-    elif dataset == 'communities':
-        Z, num_features, info = communities_z, communities_num_features, communities_info
+
     elif dataset == 'bank':
         Z, num_features, info = bank_z, bank_num_features, bank_info
     else:
@@ -272,7 +264,6 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
     else: 
         Warning('Does not support this method!')
         exit(1)
-
 
 def sim_dp_man(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha=0.1, **kwargs):
 

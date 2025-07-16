@@ -8,6 +8,7 @@ sys.path.insert(1, os.path.join(working_dir, 'FedFB'))
 
 from DP_run_private import sim_dp_man
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run FedFB with client-level DP")
     parser.add_argument("--epsilon", type=float, default=1.0, help="DP epsilon")
@@ -35,6 +36,5 @@ if __name__ == "__main__":
         alpha=args.alpha,
         dirichlet_alpha=args.dirichlet_alpha,
     )
-
 
 
