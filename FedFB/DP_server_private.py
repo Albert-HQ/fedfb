@@ -12,9 +12,6 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 #########################################################
 
-def laplace(x, μ, b):
-    return 1 / (2 * b) * np.exp(-np.abs(x - μ) / b)
-
 class Server(object):
     def __init__(self, model, dataset_info, seed = 123, num_workers = 4, ret = False, 
                 train_prn = False, metric = "Demographic disparity", 
@@ -125,6 +122,11 @@ class Server(object):
             start_time = time.time()
             weights = self.model.state_dict()
 
+            if self.prn and self.ε:
+                num_params = len(weights)
+                noise_std = num_params / self.ε
+                print(f"Using client-level DP: ε={self.ε}, noise std={noise_std:.4f}")
+
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
             for y in [0,1]:
@@ -157,6 +159,15 @@ class Server(object):
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.ε:
+                    num_params = len(weights)
+                    each_ε = self.ε / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -227,7 +238,7 @@ class Server(object):
                     tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -237,10 +248,11 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
         # support more than 2 groups
         else:
@@ -287,6 +299,15 @@ class Server(object):
 
                 # update global weights
                 weights = weighted_average_weights(local_weights, nc, sum(nc))
+                # add client-level DP noise after aggregation
+                if self.ε:
+                    num_params = len(weights)
+                    each_ε = self.ε / num_params
+                    for key in weights:
+                        noise = torch.from_numpy(
+                            np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
+                        ).type(weights[key].dtype)
+                        weights[key] += noise
                 self.model.load_state_dict(weights)
 
                 loss_avg = sum(local_losses) / len(local_losses)
@@ -351,7 +372,7 @@ class Server(object):
 
 
             # Test inference after completion of training
-            test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+            test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
             rd = self.disparity(n_yz)
 
             if self.prn:
@@ -361,10 +382,11 @@ class Server(object):
 
                 # Compute fairness metric
                 print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+                print("|---- Test EOD     : {:.4f}".format(test_eod))
 
                 print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-            if self.ret: return test_acc, rd, self.model
+            if self.ret: return test_acc, rd, test_eod, self.model
 
     def FFLFB(self, num_rounds = 10, local_epochs = 30, learning_rate = 0.005, optimizer = 'adam', alpha = (0.3,0.3,0.3)):
         # new algorithm for demographic parity, add weights directly, signed gradient-based algorithm
@@ -378,6 +400,11 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
+
+        if self.prn and self.ε:
+            num_params = len(weights)
+            noise_std = num_params / self.ε
+            print(f"Using client-level DP: ε={self.ε}, noise std={noise_std:.4f}")
 
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
@@ -403,6 +430,15 @@ class Server(object):
 
             # update global weights
             weights = weighted_average_weights(local_weights, nc, sum(nc))
+            # add client-level DP noise after aggregation
+            if self.ε:
+                num_params = len(weights)
+                each_ε = self.ε / num_params
+                for key in weights:
+                    noise = torch.from_numpy(
+                        np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
+                    ).type(weights[key].dtype)
+                    weights[key] += noise
             self.model.load_state_dict(weights)
 
             loss_avg = sum(local_losses) / len(local_losses)
@@ -451,7 +487,7 @@ class Server(object):
                 tune.report(loss = loss, accuracy = train_accuracy[-1], disp = self.disparity(n_yz), iteration = round_+1)  
 
         # Test inference after completion of training
-        test_acc, n_yz= self.test_inference()
+        test_acc, n_yz, test_eod = self.test_inference()
         rd = self.disparity(n_yz)
 
         if self.prn:
@@ -461,15 +497,16 @@ class Server(object):
 
             # Compute fairness metric
             print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+            print("|---- Test EOD     : {:.4f}".format(test_eod))
 
             print('\n Total Run Time: {0:0.4f} sec'.format(time.time()-start_time))
 
-        if self.ret: return test_acc, rd, self.model
+        if self.ret: return test_acc, rd, test_eod, self.model
 
     def test_inference(self, model = None, test_dataset = None):
 
-        """ 
-        Returns the test accuracy and fairness level.
+        """
+        Returns the test accuracy, DP counts and EOD value.
         """
         # set seed
         np.random.seed(self.seed)
@@ -485,7 +522,9 @@ class Server(object):
         for y in [0,1]:
             for z in range(self.Z):
                 n_yz[(y,z)] = 0
-        
+
+        y_true_all, y_pred_all, z_all = [], [], []
+
         testloader = DataLoader(test_dataset, batch_size=self.batch_size,
                                 shuffle=False)
 
@@ -501,13 +540,29 @@ class Server(object):
             bool_correct = torch.eq(pred_labels, labels)
             correct += torch.sum(bool_correct).item()
             total += len(labels)
-            
+
             for y,z in n_yz:
-                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()  
+                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()
+
+            y_true_all.append(labels.cpu())
+            y_pred_all.append(pred_labels.cpu())
+            z_all.append(sensitive.cpu())
 
         accuracy = correct/total
 
-        return accuracy, n_yz
+        y_true_all = torch.cat(y_true_all)
+        y_pred_all = torch.cat(y_pred_all)
+        z_all = torch.cat(z_all)
+        eod_value = compute_eod(y_true_all, y_pred_all, z_all)
+
+        # ensure ε-differential privacy when reporting counts
+        if self.ε:
+            num_params = len(self.model.state_dict())
+            each_ε = self.ε / (num_params + self.Z * 2)
+            for yz in n_yz:
+                n_yz[yz] += np.random.normal(loc=0.0, scale=1/each_ε)
+
+        return accuracy, n_yz, eod_value
 
 class Client(object):
     def __init__(self, dataset, idxs, batch_size, option, seed = 0, prn = True, penalty = 500, Z = 2):
@@ -599,8 +654,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -656,8 +711,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -819,8 +874,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / num_params
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 
@@ -889,7 +944,7 @@ class Client(object):
             each_ε = ε / (num_params + self.Z * 2)
 
             for yz in loss_yz:
-                loss_yz[yz] += loss_yz[yz] + np.random.laplace(loc = 0, scale = 1/each_ε)
+                loss_yz[yz] += loss_yz[yz] + np.random.normal(loc = 0, scale = 1/each_ε)
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, loss_yz
         else:
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, None
