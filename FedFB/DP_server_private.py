@@ -12,9 +12,6 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 #########################################################
 
-def laplace(x, μ, b):
-    return 1 / (2 * b) * np.exp(-np.abs(x - μ) / b)
-
 class Server(object):
     def __init__(self, model, dataset_info, seed = 123, num_workers = 4, ret = False, 
                 train_prn = False, metric = "Demographic disparity", 
@@ -127,8 +124,9 @@ class Server(object):
 
             if self.prn and self.ε:
                 num_params = len(weights)
-                noise_scale = num_params / self.ε
-                print(f"Using client-level DP: ε={self.ε}, noise scale={noise_scale:.4f}")
+
+                noise_std = num_params / self.ε
+                print(f"Using client-level DP: ε={self.ε}, noise std={noise_std:.4f}")
 
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
@@ -168,7 +166,7 @@ class Server(object):
                     each_ε = self.ε / num_params
                     for key in weights:
                         noise = torch.from_numpy(
-                            np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
+                            np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
                         ).type(weights[key].dtype)
                         weights[key] += noise
                 self.model.load_state_dict(weights)
@@ -406,6 +404,7 @@ class Server(object):
 
         if self.prn and self.ε:
             num_params = len(weights)
+
             noise_scale = num_params / self.ε
             print(f"Using client-level DP: ε={self.ε}, noise scale={noise_scale:.4f}")
 
@@ -439,7 +438,7 @@ class Server(object):
                 each_ε = self.ε / num_params
                 for key in weights:
                     noise = torch.from_numpy(
-                        np.random.laplace(0.0, 1 / each_ε, size=weights[key].shape)
+                        np.random.normal(0.0, 1 / each_ε, size=weights[key].shape)
                     ).type(weights[key].dtype)
                     weights[key] += noise
             self.model.load_state_dict(weights)
@@ -563,8 +562,7 @@ class Server(object):
             num_params = len(self.model.state_dict())
             each_ε = self.ε / (num_params + self.Z * 2)
             for yz in n_yz:
-                n_yz[yz] += np.random.laplace(loc=0.0, scale=1/each_ε)
-
+                n_yz[yz] += np.random.normal(loc=0.0, scale=1/each_ε)
         return accuracy, n_yz, eod_value
 
 class Client(object):
@@ -657,8 +655,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -714,8 +712,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / (num_params + self.Z * 2)
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc
 
@@ -877,8 +875,8 @@ class Client(object):
         num_params = len(model.state_dict())
         each_ε = ε / num_params
 
-        for key in model.state_dict(): 
-            private_parameters[key] = model.state_dict()[key] + np.random.laplace(loc = 0, scale = 1/each_ε)
+        for key in model.state_dict():
+            private_parameters[key] = model.state_dict()[key] + np.random.normal(loc = 0, scale = 1/each_ε)
         model.load_state_dict(private_parameters)
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), nc, lbd, m_yz
 
@@ -947,7 +945,7 @@ class Client(object):
             each_ε = ε / (num_params + self.Z * 2)
 
             for yz in loss_yz:
-                loss_yz[yz] += loss_yz[yz] + np.random.laplace(loc = 0, scale = 1/each_ε)
+                loss_yz[yz] += loss_yz[yz] + np.random.normal(loc = 0, scale = 1/each_ε)
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, loss_yz
         else:
             return accuracy, loss, n_yz, acc_loss / num_batch, fair_loss / num_batch, None
