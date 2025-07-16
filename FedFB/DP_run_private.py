@@ -215,5 +215,5 @@ def sim_dp_man(method, model, dataset, ε = 1, num_sim = 5, seed = 0, **kwargs):
         "| Accuracy: %.4f(%.4f) | DP Disp: %.4f(%.4f) | EOD: %.4f(%.4f)"
         % (acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std)
     )
-
     return acc_mean, acc_std, dp_mean, dp_std, eod_mean, eod_std
+
