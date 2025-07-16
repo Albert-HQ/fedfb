@@ -743,7 +743,7 @@ class Server(object):
             models.append(local_model.uflfb_update(copy.deepcopy(self.model).to(DEVICE), num_epochs, learning_rate[c], optimizer, alpha[c]))
         
         # Test inference after completion of training
-        test_acc, n_yz = self.ufl_inference(models, self.test_dataset)
+        test_acc, n_yz, test_eod = self.ufl_inference(models, self.test_dataset)
         rd = self.disparity(n_yz)
 
         if self.prn:
@@ -752,9 +752,10 @@ class Server(object):
 
             # Compute fairness metric
             print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+            print("|---- Test EOD     : {:.4f}".format(test_eod))
 
-        if self.ret: 
-            return test_acc, rd, self.model
+        if self.ret:
+            return test_acc, rd, test_eod, self.model
 
     def FFLFB(self, num_rounds = 10, local_epochs = 30, learning_rate = 0.005, optimizer = 'adam', alpha = (0.3,0.3,0.3)):
         # new algorithm for demographic parity, add weights directly, signed gradient-based algorithm
@@ -1026,7 +1027,7 @@ class Server(object):
 
         # Test inference after completion of training
         if self.select_round: self.model.load_state_dict(test_model)
-        test_acc, n_yz = self.test_inference(self.model, self.test_dataset)
+        test_acc, n_yz, test_eod = self.test_inference(self.model, self.test_dataset)
         rd = self.disparity(n_yz)
 
         if self.prn:
@@ -1035,8 +1036,10 @@ class Server(object):
 
             # Compute fairness metric
             print("|---- Test "+ self.metric+": {:.4f}".format(rd))
+            print("|---- Test EOD     : {:.4f}".format(test_eod))
 
-        if self.ret: return test_acc, rd, self.model
+        if self.ret:
+            return test_acc, rd, test_eod, self.model
 
     def inference(self, option = 'unconstrained', penalty = 100, model = None, validloader = None):
         """ 
@@ -1185,6 +1188,8 @@ class Server(object):
             for z in range(self.Z):
                 n_yz[(y,z)] = 0
 
+        y_true_all, y_pred_all, z_all = [], [], []
+
         for model in models:
             model.eval()
 
@@ -1210,11 +1215,20 @@ class Server(object):
             total += len(labels)
             
             for y,z in n_yz:
-                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()  
+                n_yz[(y,z)] += torch.sum((sensitive == z) & (pred_labels == y)).item()
+
+            y_true_all.append(labels.cpu())
+            y_pred_all.append(pred_labels.cpu())
+            z_all.append(sensitive.cpu())
 
         accuracy = correct/total
 
-        return accuracy, n_yz
+        y_true_all = torch.cat(y_true_all)
+        y_pred_all = torch.cat(y_pred_all)
+        z_all = torch.cat(z_all)
+        eod_value = compute_eod(y_true_all, y_pred_all, z_all)
+
+        return accuracy, n_yz, eod_value
 
 class Client(object):
     def __init__(self, dataset, idxs, batch_size, option, seed = 0, prn = True, penalty = 500, Z = 2):
