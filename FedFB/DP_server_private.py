@@ -125,6 +125,11 @@ class Server(object):
             start_time = time.time()
             weights = self.model.state_dict()
 
+            if self.prn and self.ε:
+                num_params = len(weights)
+                noise_scale = num_params / self.ε
+                print(f"Using client-level DP: ε={self.ε}, noise scale={noise_scale:.4f}")
+
             # the number of samples whose label is y and sensitive attribute is z
             m_yz, lbd = {}, {}
             for y in [0,1]:
@@ -398,6 +403,11 @@ class Server(object):
         train_loss, train_accuracy = [], []
         start_time = time.time()
         weights = self.model.state_dict()
+
+        if self.prn and self.ε:
+            num_params = len(weights)
+            noise_scale = num_params / self.ε
+            print(f"Using client-level DP: ε={self.ε}, noise scale={noise_scale:.4f}")
 
         lbd, m_yz, nc = [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)], [None for _ in range(self.num_clients)]
 
