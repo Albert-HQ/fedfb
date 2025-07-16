@@ -78,9 +78,11 @@ features_to_keep = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 
 label_name = 'salary'
 
 adult = process_csv('adult', 'adult.data', label_name, ' >50K', sensitive_attributes, [' Female'], categorical_attributes, continuous_attributes, features_to_keep, na_values = [], header = None, columns = features_to_keep)
-test = process_csv('adult', 'adult.test', label_name, ' >50K.', sensitive_attributes, [' Female'], categorical_attributes, continuous_attributes, features_to_keep, na_values = [], header = None, columns = features_to_keep) # the distribution is very different from training distribution
-test['native-country_ Holand-Netherlands'] = 0
-test = test[adult.columns]
+
+adult_test_df = process_csv('adult', 'adult.test', label_name, ' >50K.', sensitive_attributes, [' Female'], categorical_attributes, continuous_attributes, features_to_keep, na_values = [], header = None, columns = features_to_keep) # the distribution is very different from training distribution
+adult_test_df['native-country_ Holand-Netherlands'] = 0
+adult_test_df = adult_test_df[adult.columns]
+
 
 ADULT_NUM_CLIENTS = 5
 
@@ -117,7 +119,9 @@ def make_adult_info(alpha=0.1, seed=1):
         20,
     )
     train_ds = LoadData(adult, 'salary', 'z')
-    test_ds = LoadData(test, 'salary', 'z')
+
+    test_ds = LoadData(adult_test_df, 'salary', 'z')
+
     num_features = len(adult.columns) - 1
     return [train_ds, test_ds, clients_idx], num_features
 
@@ -209,11 +213,11 @@ label_name = 'y'
 bank = process_csv('bank', 'bank_cat_age.csv', label_name, 'yes', sensitive_attributes, None, categorical_attributes, continuous_attributes, features_to_keep, na_values = [])
 bank = bank.sample(frac=1).reset_index(drop=True)
 
-train = bank.iloc[:int(len(bank)*.7)]
-test = bank.iloc[int(len(bank)*.7):]
+bank_train_df = bank.iloc[:int(len(bank)*.7)]
+bank_test_df = bank.iloc[int(len(bank)*.7):]
 
-loan_idx = np.where(train.loan_no == 1)[0]
-loan_no_idx = np.where(train.loan_no == 0)[0]
+loan_idx = np.where(bank_train_df.loan_no == 1)[0]
+loan_no_idx = np.where(bank_train_df.loan_no == 0)[0]
 client1_idx = np.concatenate((loan_idx[:int(len(loan_idx)*.5)], loan_no_idx[:int(len(loan_no_idx)*.2)]))
 client2_idx = np.concatenate((loan_idx[int(len(loan_idx)*.5):int(len(loan_idx)*.6)], loan_no_idx[int(len(loan_no_idx)*.2):int(len(loan_no_idx)*.8)]))
 client3_idx = np.concatenate((loan_idx[int(len(loan_idx)*.6):], loan_no_idx[int(len(loan_no_idx)*.8):]))
@@ -221,13 +225,13 @@ np.random.shuffle(client1_idx)
 np.random.shuffle(client2_idx)
 np.random.shuffle(client3_idx)
 
-bank_mean_sensitive = train['z'].mean()
+bank_mean_sensitive = bank_train_df['z'].mean()
 bank_z = len(set(bank.z))
 
 clients_idx = [client1_idx, client2_idx, client3_idx]
 
 bank_num_features = len(bank.columns) - 1
-bank_train = LoadData(train, label_name, 'z')
-bank_test = LoadData(test, label_name, 'z')
+bank_train = LoadData(bank_train_df, label_name, 'z')
+bank_test = LoadData(bank_test_df, label_name, 'z')
 
 bank_info = [bank_train, bank_test, clients_idx]

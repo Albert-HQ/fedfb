@@ -226,7 +226,6 @@ def sim_dp(method, model, dataset, epsilon=1, num_sim=5, seed=0, dirichlet_alpha
         for seed in range(1, num_sim):
             print('--------------------------------Seed:' + str(seed) + '--------------------------------')
             if num_clients <= 2:
-
                 result = run_dp(
                     method=method,
                     model=model,
